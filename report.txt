@@ -1,0 +1,52 @@
+Хост: 127.0.0.1 (localhost)
+Статус: up
+
+Протокол: tcp
+Порт: 135	Состояние: open
+Сервис: msrpc
+Продукт: Microsoft Windows RPC
+Версия: 
+Порт: 445	Состояние: open
+Сервис: microsoft-ds
+Продукт: 
+Версия: 
+Порт: 8000	Состояние: open
+Сервис: http
+Продукт: SimpleHTTPServer
+Версия: 0.6
+Найденные уязвимости:
+Скрипт: http-csrf
+Результат: Couldn't find any CSRF vulnerabilities.
+
+Скрипт: http-dombased-xss
+Результат: Couldn't find any DOM based XSS.
+
+Скрипт: http-aspnet-debug
+Результат: ERROR: Script execution failed (use -d to debug)
+
+Скрипт: http-title
+Результат: Test Site
+
+Скрипт: http-stored-xss
+Результат: Couldn't find any stored XSS vulnerabilities.
+
+Скрипт: http-slowloris-check
+Результат: 
+  VULNERABLE:
+  Slowloris DOS attack
+    State: LIKELY VULNERABLE
+    IDs:  CVE:CVE-2007-6750
+      Slowloris tries to keep many connections to the target web server open and hold
+      them open as long as possible.  It accomplishes this by opening connections to
+      the target web server and sending a partial request. By doing so, it starves
+      the http server's resources causing Denial Of Service.
+      
+    Disclosure date: 2009-09-17
+    References:
+      http://ha.ckers.org/slowloris/
+      https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2007-6750
+
+
+Скрипт: http-server-header
+Результат: SimpleHTTP/0.6 Python/3.12.6
+

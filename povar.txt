@@ -1,0 +1,77 @@
+Хост: 144.76.196.4 (server10.ivlim.ru)
+Статус: up
+
+Протокол: tcp
+Порт: 80	Состояние: open
+Сервис: http
+Продукт: nginx
+Версия: 
+Найденные уязвимости:
+Скрипт: http-csrf
+Результат: Couldn't find any CSRF vulnerabilities.
+
+Скрипт: http-title
+Результат: 403 Forbidden
+
+Скрипт: http-dombased-xss
+Результат: Couldn't find any DOM based XSS.
+
+Скрипт: http-stored-xss
+Результат: Couldn't find any stored XSS vulnerabilities.
+
+Порт: 443	Состояние: open
+Сервис: http
+Продукт: nginx
+Версия: 
+Найденные уязвимости:
+Скрипт: ssl-date
+Результат: 2024-10-01T12:20:26+00:00; -1s from scanner time.
+
+Скрипт: ssl-dh-params
+Результат: 
+  VULNERABLE:
+  Diffie-Hellman Key Exchange Insufficient Group Strength
+    State: VULNERABLE
+      Transport Layer Security (TLS) services that use Diffie-Hellman groups
+      of insufficient strength, especially those using one of a few commonly
+      shared groups, may be susceptible to passive eavesdropping attacks.
+    Check results:
+      WEAK DH GROUP 1
+            Cipher Suite: TLS_DHE_RSA_WITH_AES_256_CBC_SHA
+            Modulus Type: Safe prime
+            Modulus Source: nginx/1024-bit MODP group with safe prime modulus
+            Modulus Length: 1024
+            Generator Length: 8
+            Public Key Length: 1024
+    References:
+      https://weakdh.org
+
+
+Скрипт: ssl-cert
+Результат: Subject: commonName=povarenok.ru
+Subject Alternative Name: DNS:*.povarenok.ru, DNS:povarenok.ru
+Not valid before: 2024-07-31T13:15:48
+Not valid after:  2024-10-29T13:15:47
+
+Скрипт: http-robots.txt
+Результат: 28 disallowed entries (15 shown)
+/guestbook/* /userrecipes/* /book/* /tip/* /feed/* 
+/comments/* /team/* /useralbums/* /login /oauth/ /ajax/ /users/ 
+/elka/ /app/ /users/search/
+
+Скрипт: tls-nextprotoneg
+Результат: 
+  http/1.1
+
+Скрипт: http-dombased-xss
+Результат: Couldn't find any DOM based XSS.
+
+Скрипт: http-stored-xss
+Результат: Couldn't find any stored XSS vulnerabilities.
+
+Скрипт: http-csrf
+Результат: Couldn't find any CSRF vulnerabilities.
+
+Скрипт: http-title
+Результат: Did not follow redirect to https://www.povarenok.ru/user/server10.ivlim.ru/
+

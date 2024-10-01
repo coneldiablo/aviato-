@@ -1,14 +1,55 @@
 import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
-                             QVBoxLayout, QHBoxLayout, QSpinBox, QTextEdit, QFileDialog)
+                             QVBoxLayout, QHBoxLayout, QSpinBox, QTextEdit, QFileDialog, QMessageBox)
 from PyQt5.QtGui import QFont, QFontDatabase
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread
 from nmap_scanner import NmapScanner
-import threading
-import time
+import socket
+
+# Класс для выполнения Nmap сканирования в отдельном потоке
+class ScanWorker(QThread):
+    # Сигналы для передачи данных в основной поток
+    progress_signal = pyqtSignal(int)
+    text_signal = pyqtSignal(str)
+    finished_signal = pyqtSignal(str)
+
+    def __init__(self, domain):
+        super().__init__()
+        self.domain = domain
+        self._is_running = True  # Флаг для остановки сканирования
+
+    def run(self):
+        try:
+            scanner = NmapScanner()
+            self.text_signal.emit(f"Запуск Nmap для {self.domain}...")
+            self.progress_signal.emit(10)
+
+            # Выполняем полное сканирование с поиском уязвимостей
+            report = scanner.run_scan(self.domain)
+
+            if report is None:
+                self.text_signal.emit("Сканирование завершено, но хосты не найдены.")
+                self.finished_signal.emit("")
+                return
+
+            if not self._is_running:  # Прерывание потока, если пентест остановлен
+                self.text_signal.emit("Пентест остановлен.")
+                self.finished_signal.emit("")
+                return
+
+            self.text_signal.emit("Сканирование завершено.")
+            self.progress_signal.emit(100)
+            self.finished_signal.emit(report)
+
+        except Exception as e:
+            self.text_signal.emit(f"Ошибка при запуске сканирования: {e}")
+            self.finished_signal.emit("")
+
+    def stop(self):
+        self._is_running = False  # Прерывание сканирования
 
 class MainWindow(QMainWindow):
-    # Создаем сигнал для обновления текстового поля и прогресса
+    # Сигналы для обновления текстового поля и прогресса
     text_update_signal = pyqtSignal(str)
     progress_update_signal = pyqtSignal(int)
 
@@ -18,10 +59,6 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 800, 600)
         self.is_scanning = False
         self.initUI()
-
-        # Подключаем сигнал к слоту для обновления текстового поля
-        self.text_update_signal.connect(self.update_text_output)
-        self.progress_update_signal.connect(self.update_progress)
 
     def initUI(self):
         # Подключаем шрифт Soyuz Grotesk
@@ -35,7 +72,7 @@ class MainWindow(QMainWindow):
         self.result_output.setReadOnly(True)
 
         # Поле для ввода URL
-        url_label = QLabel("Тестируемый URL/IP:")
+        url_label = QLabel("Тестируемый домен/IP:")
         url_label.setFont(font)
         self.url_input = QLineEdit()
         self.url_input.setFont(font)
@@ -95,6 +132,10 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
 
+        # Подключаем сигналы для обновления интерфейса
+        self.text_update_signal.connect(self.update_text_output)
+        self.progress_update_signal.connect(self.update_progress)
+
     # Слот для обновления текстового поля
     def update_text_output(self, text):
         self.result_output.append(text)
@@ -106,6 +147,29 @@ class MainWindow(QMainWindow):
     def clear_url(self):
         self.url_input.clear()
 
+    # Проверка правильности домена/IP, включая обработку "localhost"
+    def is_valid_domain_or_ip(self, url):
+        if url == "localhost":
+            return "localhost"
+        try:
+            if "://" in url:
+                url = url.split("://")[1]  # Удаляем протокол (http:// или https://)
+            domain = url.split('/')[0]  # Убираем все, что после домена
+            socket.gethostbyname(domain)  # Проверяем доступность домена по DNS
+            return domain  # Возвращаем домен для использования
+        except socket.gaierror:
+            return None
+
+    def show_invalid_url_warning(self):
+        QMessageBox.warning(
+            self,
+            "Некорректный адрес",
+            "Введите корректный домен или IP-адрес. Примеры:\n\n"
+            "Домен: example.com\n"
+            "IP: 192.168.0.1\n"
+            "Без протокола (http/https) и слэшей (/)."
+        )
+
     def start_scan(self):
         if self.is_scanning:
             self.text_update_signal.emit("Пентест уже запущен.")
@@ -113,83 +177,59 @@ class MainWindow(QMainWindow):
 
         # Получаем URL или используем "localhost", если поле пустое
         url = self.url_input.text().strip()
-        interval = self.interval_input.value()
-
-        # Если URL не указан, по умолчанию использовать "localhost"
         if not url:
             url = "localhost"
             self.text_update_signal.emit(f"Сканирование по умолчанию запущено для {url}.")
-        elif url.lower() == "localhost":
-            self.text_update_signal.emit(f"Сканирование запущено для локального сайта {url}.")
         else:
-            self.text_update_signal.emit(f"Начинается сканирование для {url} с интервалом {interval} минут.")
+            # Проверка правильности домена/IP
+            domain = self.is_valid_domain_or_ip(url)
+            if not domain:
+                self.show_invalid_url_warning()
+                return
+
+            self.text_update_signal.emit(f"Начинается сканирование для {domain}...")
 
         self.is_scanning = True
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
 
-        # Запуск в отдельном потоке
-        self.scan_thread = threading.Thread(target=self.run_scan, args=(url, interval), daemon=True)
-        self.scan_thread.start()
+        # Запуск сканирования в отдельном потоке
+        self.scan_worker = ScanWorker(domain)
+        self.scan_worker.progress_signal.connect(self.update_progress)
+        self.scan_worker.text_signal.connect(self.update_text_output)
+        self.scan_worker.finished_signal.connect(self.on_scan_finished)
+        self.scan_worker.start()
 
     def stop_scan(self):
         if self.is_scanning:
             self.text_update_signal.emit("Остановка пентеста...")
+            self.scan_worker.stop()  # Прерывание потока
             self.is_scanning = False
+            self.progress_update_signal.emit(0)  # Сбрасываем прогресс на 0
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
         else:
             self.text_update_signal.emit("Пентест не запущен.")
 
-    def run_scan(self, url, interval):
-        scanner = NmapScanner()
-        try:
-            # Отображаем прогресс
-            self.text_update_signal.emit(f"Запуск Nmap для {url}...")
-            self.progress_update_signal.emit(10)  # Инициализация, 10%
-
-            # Этап 1: Сканирование хоста
-            time.sleep(2)  # Имитация времени на этап
-            self.text_update_signal.emit(f"Этап 1: Сканирование хоста для {url}...")
-            self.progress_update_signal.emit(30)  # 30% прогресса
-
-            # Этап 2: Сканирование портов
-            report = scanner.run_scan(url)
-            self.text_update_signal.emit(f"Этап 2: Сканирование портов для {url}...")
-            self.progress_update_signal.emit(60)  # 60% прогресса
-
-            # Этап 3: Завершение и анализ сервисов
-            time.sleep(2)  # Имитация времени на этап
-            self.text_update_signal.emit(f"Этап 3: Завершение сканирования для {url}...")
-            self.progress_update_signal.emit(90)  # 90% прогресса
-
-            # Выводим отчет
-            self.text_update_signal.emit(f"Отчет:\n{report}")
-            self.progress_update_signal.emit(100)  # Завершение, 100%
-
-            # Сохранение отчета после завершения пентеста
-            self.save_report(report)
-
-        except Exception as e:
-            self.text_update_signal.emit(f"Ошибка при запуске сканирования: {e}")
-            self.is_scanning = False
-            self.start_button.setEnabled(True)
-            self.stop_button.setEnabled(False)
-            return
-
-        self.text_update_signal.emit("Отчет отправлен по электронной почте.")
+    def on_scan_finished(self, report):
         self.is_scanning = False
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
+        if report:
+            # Теперь вызываем окно сохранения в основном потоке
+            QTimer.singleShot(0, lambda: self.save_report(report))
+        else:
+            self.text_update_signal.emit("Сканирование завершено без отчета.")
 
     # Диалоговое окно для сохранения отчета
     def save_report(self, report):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
         file_path, _ = QFileDialog.getSaveFileName(self, "Сохранить отчет", "", "Text Files (*.txt);;All Files (*)", options=options)
-        
+
         if file_path:
-            with open(file_path, 'w') as file:
+            # Сохранение отчета с кодировкой UTF-8
+            with open(file_path, 'w', encoding='utf-8') as file:
                 file.write(report)
             self.text_update_signal.emit(f"Отчет сохранен в: {file_path}")
         else:
